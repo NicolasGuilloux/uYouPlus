@@ -4,7 +4,8 @@
 name: Build and Release uYouPlus
 
 on:
-  workflow_dispatch:
+  push: ~
+  workflow_call:
     inputs:
       uyou_version:
         description: "The version of uYou"
@@ -14,7 +15,7 @@ on:
       decrypted_youtube_url:
         description: "Direct URL to the decrypted YouTube ipa. The version of YouTube will be detected automatically."
         default: ""
-        required: true
+        required: false
         type: string
       bundle_id:
         description: "Modify the bundle ID. Not recommended"
@@ -110,10 +111,25 @@ jobs:
         env:
           THEOS: ${{ github.workspace }}/theos
 
+      - name: Download Decrypted YouTube IPA from inputs
+        id: download_youtube
+        if: "${{ inputs.decrypted_youtube_url != '' }}"
+        run: |
+          wget "$YOUTUBE_URL" --no-verbose -O main/YouTube.ipa &> /dev/null
+        env:
+          YOUTUBE_URL: ${{ inputs.decrypted_youtube_url }}
+
+      - name: Download Decrypted YouTube IPA from env
+        id: download_youtube_env
+        if: "${{ inputs.decrypted_youtube_url == '' }}"
+        run: |
+          wget "$YOUTUBE_URL" --no-verbose -O main/YouTube.ipa &> /dev/null
+        env:
+          YOUTUBE_URL: ${{ secrets.YOUTUBE_URL }}
+
       - name: Prepare YouTube iPA
         id: prepare_youtube
         run: |
-          wget "$YOUTUBE_URL" --no-verbose -O main/YouTube.ipa
           cd ${{ github.workspace }}/main
           mv YouTube.ipa YouTube.zip
           unzip -q YouTube.zip
@@ -121,10 +137,8 @@ jobs:
           echo "==> YouTube v$youtube_version downloaded!"
           sed -i '' "17s#.*#YOUTUBE_VERSION = ${youtube_version}#g" Makefile
           echo "youtube_version=${youtube_version}" >> $GITHUB_OUTPUT
-
         env:
           THEOS: ${{ github.workspace }}/theos
-          YOUTUBE_URL: ${{ inputs.decrypted_youtube_url }}
 
       - name: Fix compiling & Build Package
         id: build_package
